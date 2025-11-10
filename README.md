@@ -31,7 +31,7 @@ Nejprve jsem udělala průzkum toho, jaké faktové a dimenzní tabulky k zodpov
 
 Dále jsem pak určila, které sloupce z tabulek jsou ty potřebné, a měla tak v tabulce pouze ty podstatné. Jako takové sloupce byly pro tabulky týkající se mezd zvoleny *cp.payroll_year*, *cpib.name* a *cp.value*, pro tabulky týkající se cen pak *cp.date_from*, *cpc.name*, *cpc.price_unit* a *cp.value*.
 
-Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN nejdříve jako VIEW, abych si výsledek spojování mohla prohlédnout a získala tak přehled o budoucí podobě tabulky. Z vytvořeného VIEW jsem pak už vytvořila finální primární tabulku pokrývající data o mzdách a cenách pro roky 2006 až 2018, která jsou potřebná k zodpovězení výzkumných otázek.
+Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN nejdříve jako VIEW, abych si výsledek spojování mohla prohlédnout a získala tak přehled o budoucí podobě tabulky. Z vytvořeného VIEW jsem pak už vytvořila finální primární tabulku pokrývající data o mzdách a cenách pro roky 2006 až 2018, která jsou potřebná k zodpovězení výzkumných otázek, konkrétně pak otázek 1) až 4).
 
     CREATE OR REPLACE VIEW v_primary AS 
 	WITH wages AS (
@@ -73,3 +73,36 @@ Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN ne
 
 
 ## **Sekundární tabulka** 
+# **Odpovědi na výzkumné otázky**
+## **1)   Rostou v průběhu let mzdy ve všech odvětvích, nebo v některých klesají?** 
+**Ne, nikoliv.** V průběhu let mzdy sice v převážné většině odvětví rostou, ale nikoliv ve všech, přičemž právě v několika z nich a v různých letech dokonce klesají. Jmenovitě se pak jedná například o odvětví **Těžby a dobývání**, **Ubytování, stravování a pohostinství** a **Zemědělství, lesnictví a rybářství** v roce **2009**. V případě roku **2010** se pokles týkal **Profesní, vědecké a technické činnosti**, **Veřejné správy a obrany**, či **Vzdělávání**. Několik ze sledovaných odvětví čelilo poklesu mezd i v roce **2011, 2014 až 2016**, ale nejzásadnější byl rok **2013**, kdy mzdy poklesly dokonce v **jedenácti odvětvích**.
+
+K získání odpovědi pak bylo využito kódu níže. Za pomoci *industry_avg* jsem sjednotila průměrné mzdy za každé odvětví a rok a odstranila tak jejich duplicity vzniklé původním spojením tabulek mezd a cen potravin. Poté jsem v *growth_calc* spočítala procentuální meziroční růst mezd pomocí funkce LAG(), která umožňuje porovnat danou hodnotou s tou předešlou. Nakonec jsem pomocí hlavního SELECT vyfiltrovala pouze záporné hodnoty meziročního za účelem toho, abych zjistila, zda existují odvětví a roky s poklesem mezd.
+
+
+    WITH industry_avg AS (
+	    SELECT
+		    industry,
+		    year,
+		    ROUND(AVG(avg_wage), 2) AS avg_wage
+		 FROM t_natalie_vymlatilova_project_SQL_primary_final
+		 WHERE avg_wage IS NOT NULL
+		 GROUP BY industry, year
+	),
+	wage_growth AS (
+		SELECT
+			industry,
+			year,
+			avg_wage,
+			ROUND(((avg_wage - LAG(avg_wage) OVER (PARTITION BY industry ORDER BY year))
+				/ LAG(avg_wage) OVER (PARTITION BY industry ORDER BY year)
+				) * 100, 2
+			) AS wage_growth_percent
+		FROM industry_avg
+	)
+	SELECT *
+	FROM wage_growth
+	WHERE wage_growth_percent < 0
+	ORDER BY industry, year;
+
+## **2)   Kolik je možné si koupit litrů mléka a kilogramů chleba za první a poslední srovnatelné období v dostupných datech cen a mezd?** 
