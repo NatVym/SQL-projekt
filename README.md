@@ -142,7 +142,7 @@ K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_price* jse
 	ORDER BY YEAR;
 
 ## 3) Která kategorie potravin zdražuje nejpomaleji (je u ní nejnižší percentuální meziroční nárůst)?
-Nejpomaleji zdražuje, tj. má nejnižší procentuální meziroční nárůst, kategorie **Banány žluté**. Její průměrný **nárůst ceny odpovídá 0,81 %** za celé sledované období. Čistě pro zajímavost lze zmínit, že se ve výsledné tabulce **nenacházela jako první, nýbrž jako třetí** po kategorii **Cukr krystalový a Rajská jablka červená kulatá**. Zmíněné dvě kategorie však mají záporný průměrný procentuální nárůst, což znamená, že tyto kategorie nikterak nezdražily, ale naopak **zlevnily**.
+Nejpomaleji zdražuje, tj. má nejnižší procentuální meziroční nárůst, kategorie **Banány žluté**. Její průměrný **nárůst ceny odpovídá 0,81 %** za celé sledované období. Čistě pro zajímavost lze zmínit, že se ve výsledné tabulce **nenacházela jako první, nýbrž jako třetí** po kategorii **Cukr krystalový a Rajská jablka červená kulatá**. Zmíněné dvě kategorie však mají záporný průměrný procentuální nárůst, což znamená, že tyto kategorie nikterak nezdražily, ale naopak **slevnily**.
 
 K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_prices* jsem si data zaokrouhlila na dvě desetinná místa. Poté jsem v *growth_prices* spočítala procentuální meziroční růst cen jednotlivých kategorií pomocí funkce LAG(), která umožňuje porovnat danou hodnotou s tou předešlou. Nakonec jsem pomocí hlavního SELECT vypočítala průměrný meziroční růst pro každou kategorii za celé sledované období a podle něj i výsledky seřadila.
 
@@ -171,3 +171,47 @@ K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_prices* js
 	FROM growth_prices
 	GROUP BY category
 	ORDER BY avg_growth_percent;
+
+## 4) Existuje rok, ve kterém byl meziroční nárůst cen potravin výrazně vyšší než růst mezd (větší než 10 %)?
+Ne, takový rok ve sledovaném období od roku 2006 do roku 2018 neexistuje. Nejvíce se tomu blížil vývoj v roce **2013**, kdy byl **meziroční nárůst cen potravin o 6,7% vyšší než růst mezd**. Naopak si lze všimnout, že **meziroční nárůst cen potravin** je v mnoha případech (roky 2006 až 2009, 2014 až 2016, či rok 2018) znatelně **nižší než růst mezd** - nejvýrazněji pak **v roce 2009 o 9,6 %**.
+
+K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_wage* a *avg_price* jsem si data zprůměrovala a zaokrouhlila na dvě desetinná místa. Poté jsem v *wage_growth* a *price_growth* spočítala procentuální meziroční růst mezd a cen potravin pomocí funkce LAG(). Nakonec jsem pomocí hlavního SELECT vypočítala rozdíl mezi meziročním růstem mezd a cen potravin a výsledky seřadila.
+
+    WITH avg_wage AS (
+	    SELECT
+		    year,
+		    ROUND(AVG(avg_wage)::numeric, 2) AS avg_wage
+		FROM t_natalie_vymlatilova_project_SQL_primary_final
+		WHERE avg_wage IS NOT NULL
+		GROUP BY YEAR
+	),
+	avg_price AS (
+		SELECT
+			year,
+			ROUND(AVG(avg_price)::numeric, 2) AS avg_price
+		FROM t_natalie_vymlatilova_project_SQL_primary_final
+		WHERE avg_price IS NOT NULL
+		GROUP BY year
+	),
+	wage_growth AS (
+		SELECT
+			year,
+			avg_wage,
+			((avg_wage - LAG(avg_wage) OVER (ORDER BY year))/ LAG(avg_wage) OVER (ORDER BY year)) * 100 AS wage_growth_percent
+		FROM avg_wage
+	),
+	price_growth AS (
+		SELECT
+			year,
+			((avg_price - LAG(avg_price) OVER (ORDER BY year))/ LAG(avg_price) OVER (ORDER BY year)) * 100 AS price_growth_percent
+		FROM avg_price
+	)
+	SELECT
+		p.year,
+		ROUND(p.price_growth_percent::numeric, 2) AS price_growth_percent,
+		ROUND(w.wage_growth_percent::numeric, 2) AS wage_growth_percent,
+		ROUND((p.price_growth_percent - w.wage_growth_percent)::numeric, 2) AS price_wage_difference
+	FROM price_growth p
+	JOIN wage_growth w USING (year)
+	ORDER BY p.year, price_wage_difference DESC;
+
