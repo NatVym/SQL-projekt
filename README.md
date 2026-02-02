@@ -73,6 +73,24 @@ Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN ne
 
 
 ## **Sekundární tabulka** 
+Sekundární tabulka vznikla spojením (konkrétně pak LEFT JOIN) již vytvořené primární tabulky *t_natalie_vymlatilova_project_SQL_primary_final*, přičemž zvoleny byly pouze relevantní sloupce (*year*, *avg_wage* a *avg_price*), a tabulky *economies*, kdy potřebnými sloupci byly *year* a *GDP*). Takto vytvořená sekundární tabulka pak obsahovala všechna data potřebná k zodpovězení 5. výzkumné otázky.
+
+    CREATE OR REPLACE VIEW v_secondary AS
+	    SELECT
+		    e.year,
+		    ROUND(AVG(avg_wage)::numeric, 2) AS avg_wage,
+		    ROUND(AVG(avg_price)::numeric, 2) AS avg_price,
+		    ROUND(AVG(gdp)::numeric, 2) AS GDP
+	    FROM economies e
+	    LEFT JOIN t_natalie_vymlatilova_project_SQL_primary_final t ON t.year = e.year
+	    WHERE e.year BETWEEN 2006 AND 2018 AND e.country = 'Czech Republic'
+	    GROUP BY e.year
+	    ORDER BY e.year;
+	    
+    CREATE TABLE t_natalie_vymlatilova_project_SQL_secondary_final AS
+	    SELECT *
+	    FROM v_secondary;
+		
 # **Odpovědi na výzkumné otázky**
 ## **1)   Rostou v průběhu let mzdy ve všech odvětvích, nebo v některých klesají?** 
 **Ne, nikoliv.** V průběhu let mzdy sice v převážné většině odvětví rostou, ale nikoliv ve všech, přičemž právě v několika z nich a v různých letech dokonce klesají. Jmenovitě se pak jedná například o odvětví **Těžby a dobývání**, **Ubytování, stravování a pohostinství** a **Zemědělství, lesnictví a rybářství** v roce **2009**. V případě roku **2010** se pokles týkal **Profesní, vědecké a technické činnosti**, **Veřejné správy a obrany**, či **Vzdělávání**. Několik ze sledovaných odvětví čelilo poklesu mezd i v roce **2011, 2014 až 2016**, ale nejzásadnější byl rok **2013**, kdy mzdy poklesly dokonce v **jedenácti odvětvích**.
@@ -144,7 +162,7 @@ K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_price* jse
 ## 3) Která kategorie potravin zdražuje nejpomaleji (je u ní nejnižší percentuální meziroční nárůst)?
 Nejpomaleji zdražuje, tj. má nejnižší procentuální meziroční nárůst, kategorie **Banány žluté**. Její průměrný **nárůst ceny odpovídá 0,81 %** za celé sledované období. Čistě pro zajímavost lze zmínit, že se ve výsledné tabulce **nenacházela jako první, nýbrž jako třetí** po kategorii **Cukr krystalový a Rajská jablka červená kulatá**. Zmíněné dvě kategorie však mají záporný průměrný procentuální nárůst, což znamená, že tyto kategorie nikterak nezdražily, ale naopak **slevnily**.
 
-K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_prices* jsem si data zaokrouhlila na dvě desetinná místa. Poté jsem v *growth_prices* spočítala procentuální meziroční růst cen jednotlivých kategorií pomocí funkce LAG(), která umožňuje porovnat danou hodnotou s tou předešlou. Nakonec jsem pomocí hlavního SELECT vypočítala průměrný meziroční růst pro každou kategorii za celé sledované období a podle něj i výsledky seřadila.
+K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_prices* jsem si data zaokrouhlila na dvě desetinná místa. Poté jsem v *growth_prices* spočítala procentuální meziroční růst cen jednotlivých kategorií pomocí funkce LAG(), která umožňuje porovnat danou hodnotu s tou předešlou. Nakonec jsem pomocí hlavního SELECT vypočítala průměrný meziroční růst pro každou kategorii za celé sledované období a podle něj i výsledky seřadila.
 
     WITH avg_prices AS (
 	    SELECT
@@ -214,4 +232,41 @@ K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_wage* a *a
 	FROM price_growth p
 	JOIN wage_growth w USING (year)
 	ORDER BY p.year, price_wage_difference DESC;
+
+## 5) Má výška HDP vliv na změny ve mzdách a cenách potravin? Neboli, pokud HDP vzroste výrazněji v jednom roce, projeví se to na cenách potravin či mzdách ve stejném nebo následujícím roce výraznějším růstem?
+|Pearsonův koeficient  | Závislost |
+|--|--|
+| 0,7 - 1,0 | Silná závislost|
+| 0,3 - 0,7 | Střední závislost |
+| 0,1 - 0,3 | Slabá závislost |
+| 0,0 - 0,1 | Žádná závislost |
+
+**Ano**, výška HDP má vliv na změny ve mzdách a cenách potravin. Dle Pearsonova koeficientu korelace má růst **HDP silný pozitivní vliv na růst mezd v dalším roce** (*koeficient = 0,7*). Zároveň má pak růst **HDP viditelný střední vliv na růst mezd** (*koeficient = 0,4*) **a cen potravin** (*koeficient = 0,5*) **v tom stejném roce**. Na co však růst HDP nemá žádný vliv, je cena potravin v následujícím roce s ohledem na to, že se *koeficient korelace rovná 0*.
+
+K získání odpovědi pak bylo využito kódu níže. Za pomoci *growth_percent* jsem si spočítala procentuální meziroční růst HDP, mezd a cen prostřednictvím funkce LAG(). Poté jsem v *growth_next_year* pomocí funkce LEAD() vybrala následující hodnoty a nakonec tak pomocí hlavního SELECT a funkce CORR vypočítala aktuální i zpožděný efekt HDP na mzdy a ceny potravin souhrnně za celé sledované období.
+
+    WITH growth_percent AS (
+	    SELECT
+		    year,
+		    ((gdp - LAG(gdp) OVER (ORDER BY year)) / LAG(gdp) OVER (ORDER BY year)) * 100 AS gdp_growth,
+		    ((avg_wage - LAG(avg_wage) OVER (ORDER BY year)) / LAG(avg_wage) OVER (ORDER BY year)) * 100 AS wage_growth,
+		    ((avg_price - LAG(avg_price) OVER (ORDER BY year)) / LAG(avg_price) OVER (ORDER BY year)) * 100 AS price_growth
+	    FROM t_natalie_vymlatilova_project_SQL_secondary_final
+    ),
+    growth_next_year AS (
+		SELECT
+			year,
+			gdp_growth,
+			wage_growth,
+			price_growth,
+			LEAD(wage_growth) OVER (ORDER BY year) AS wage_growth_next_year,
+			LEAD(price_growth) OVER (ORDER BY year) AS price_growth_next_year
+		FROM growth_percent
+	)
+	SELECT
+		ROUND(CORR(gdp_growth, wage_growth)::numeric, 3) AS corr_gdp_wage_same_year,
+		ROUND(CORR(gdp_growth, price_growth)::numeric, 3) AS corr_gdp_price_same_year,
+		ROUND(CORR(gdp_growth, wage_growth_next_year)::numeric, 3) AS corr_gdp_wage_next_year,
+		ROUND(CORR(gdp_growth, price_growth_next_year)::numeric, 3) AS corr_gdp_price_next_year
+	FROM growth_next_year;
 
