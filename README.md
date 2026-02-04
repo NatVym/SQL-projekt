@@ -70,7 +70,7 @@ Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN a 
 
 
 ## **Sekundární tabulka** 
-Sekundární tabulka vznikla spojením (LEFT JOIN) již vytvořené primární tabulky *t_natalie_vymlatilova_project_SQL_primary_final*, přičemž zvoleny byly pouze relevantní sloupce (*year*, *avg_wage* a *avg_price*), CTE z tabulky *countries* (INNER JOIN), která byla nutná pro filtrování evropských států na základě sloupce *continent*, a tabulky *economies*, kdy potřebnými sloupci byly *country*, *year* a *GDP*). Takto vytvořená sekundární tabulka pak obsahovala všechna data potřebná k zodpovězení 5. výzkumné otázky.
+Sekundární tabulka vznikla spojením (LEFT JOIN) již vytvořené primární tabulky *t_natalie_vymlatilova_project_SQL_primary_final*, přičemž zvoleny byly pouze relevantní sloupce (*year*, *avg_wage* a *avg_price*), CTE z tabulky *countries* (INNER JOIN), která byla nutná pro filtrování evropských států na základě sloupce *continent*, a tabulky *economies*, kdy potřebnými sloupci byly *population*, *gini*, *country*, *year* a *GDP*). Takto vytvořená sekundární tabulka pak obsahovala všechna data potřebná k zodpovězení 5. výzkumné otázky.
 
     CREATE TABLE t_natalie_vymlatilova_project_SQL_secondary_final AS
 	WITH europe_countries AS ( 
@@ -80,6 +80,8 @@ Sekundární tabulka vznikla spojením (LEFT JOIN) již vytvořené primární t
 		WHERE continent  = 'Europe'
 	)
 	SELECT
+		e.population,
+		e.gini,
 		e.country, 
 		e.year,
 		ROUND(AVG(avg_wage)::numeric, 2) AS avg_wage,
@@ -89,7 +91,7 @@ Sekundární tabulka vznikla spojením (LEFT JOIN) již vytvořené primární t
 	INNER JOIN europe_countries ec ON e.country = ec.country
 	LEFT JOIN t_natalie_vymlatilova_project_SQL_primary_final t ON t.year  = e.year
 	WHERE e.year BETWEEN 2006 AND 2018 AND e.country = 'Czech Republic'
-	GROUP BY e.YEAR, e.country 
+	GROUP BY e.YEAR, e.country, e.population, e.gini 
 	ORDER BY e.year;
 		
 		
