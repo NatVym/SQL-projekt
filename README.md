@@ -31,9 +31,9 @@ Nejprve jsem udělala průzkum toho, jaké faktové a dimenzní tabulky k zodpov
 
 Dále jsem pak určila, které sloupce z tabulek jsou ty potřebné, a měla tak v tabulce pouze ty podstatné. Jako takové sloupce byly pro tabulky týkající se mezd zvoleny *cp.payroll_year*, *cpib.name* a *cp.value*, pro tabulky týkající se cen pak *cp.date_from*, *cpc.name*, *cpc.price_unit* a *cp.value*.
 
-Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN nejdříve jako VIEW, abych si výsledek spojování mohla prohlédnout a získala tak přehled o budoucí podobě tabulky. Z vytvořeného VIEW jsem pak už vytvořila finální primární tabulku pokrývající data o mzdách a cenách pro roky 2006 až 2018, která jsou potřebná k zodpovězení výzkumných otázek, konkrétně pak otázek 1) až 4).
+Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN a vytvořila tak finální primární tabulku pokrývající data o mzdách a cenách pro roky 2006 až 2018, která jsou potřebná k zodpovězení výzkumných otázek, konkrétně pak otázek 1) až 4).
 
-    CREATE OR REPLACE VIEW v_primary AS 
+    CREATE TABLE t_natalie_vymlatilova_project_SQL_primary_final AS 
 	WITH wages AS (
 		    SELECT
 			    cp.payroll_year AS year,
@@ -67,29 +67,31 @@ Zmíněné tabulky a sloupce jsem pak mezi sebou propojila pomocí INNER JOIN ne
 	LEFT JOIN wages w
 	ON p.year = w.year;
 
-    CREATE TABLE t_natalie_vymlatilova_project_SQL_primary_final AS
-	    SELECT * 
-	    FROM v_primary;
 
 
 ## **Sekundární tabulka** 
-Sekundární tabulka vznikla spojením (konkrétně pak LEFT JOIN) již vytvořené primární tabulky *t_natalie_vymlatilova_project_SQL_primary_final*, přičemž zvoleny byly pouze relevantní sloupce (*year*, *avg_wage* a *avg_price*), a tabulky *economies*, kdy potřebnými sloupci byly *year* a *GDP*). Takto vytvořená sekundární tabulka pak obsahovala všechna data potřebná k zodpovězení 5. výzkumné otázky.
+Sekundární tabulka vznikla spojením (LEFT JOIN) již vytvořené primární tabulky *t_natalie_vymlatilova_project_SQL_primary_final*, přičemž zvoleny byly pouze relevantní sloupce (*year*, *avg_wage* a *avg_price*), CTE z tabulky *countries* (INNER JOIN), která byla nutná pro filtrování evropských států na základě sloupce *continent*, a tabulky *economies*, kdy potřebnými sloupci byly *country*, *year* a *GDP*). Takto vytvořená sekundární tabulka pak obsahovala všechna data potřebná k zodpovězení 5. výzkumné otázky.
 
-    CREATE OR REPLACE VIEW v_secondary AS
-	    SELECT
-		    e.year,
-		    ROUND(AVG(avg_wage)::numeric, 2) AS avg_wage,
-		    ROUND(AVG(avg_price)::numeric, 2) AS avg_price,
-		    ROUND(AVG(gdp)::numeric, 2) AS GDP
-	    FROM economies e
-	    LEFT JOIN t_natalie_vymlatilova_project_SQL_primary_final t ON t.year = e.year
-	    WHERE e.year BETWEEN 2006 AND 2018 AND e.country = 'Czech Republic'
-	    GROUP BY e.year
-	    ORDER BY e.year;
-	    
     CREATE TABLE t_natalie_vymlatilova_project_SQL_secondary_final AS
-	    SELECT *
-	    FROM v_secondary;
+		WITH europe_countries AS ( 
+			SELECT DISTINCT 
+				country
+			FROM countries
+			WHERE continent  = 'Europe'
+		)
+		SELECT
+			e.country, 
+			e.year,
+			ROUND(AVG(avg_wage)::numeric, 2) AS avg_wage,
+			ROUND(AVG(avg_price)::numeric, 2) AS avg_price,
+			ROUND(AVG(gdp)::numeric, 2) AS GDP
+		FROM economies e
+		INNER JOIN europe_countries ec ON e.country = ec.country
+		LEFT JOIN t_natalie_vymlatilova_project_SQL_primary_final t ON t.year  = e.year
+		WHERE e.year BETWEEN 2006 AND 2018 AND e.country = 'Czech Republic'
+		GROUP BY e.YEAR, e.country 
+		ORDER BY e.year;
+		
 		
 # **Odpovědi na výzkumné otázky**
 ## **1)   Rostou v průběhu let mzdy ve všech odvětvích, nebo v některých klesají?** 
