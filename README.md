@@ -90,7 +90,7 @@ Sekundární tabulka vznikla spojením (LEFT JOIN) již vytvořené primární t
 	FROM economies e
 	INNER JOIN europe_countries ec ON e.country = ec.country
 	LEFT JOIN t_natalie_vymlatilova_project_SQL_primary_final t ON t.year  = e.year
-	WHERE e.year BETWEEN 2006 AND 2018 AND e.country = 'Czech Republic'
+	WHERE e.year BETWEEN 2006 AND 2018
 	GROUP BY e.YEAR, e.country, e.population, e.gini 
 	ORDER BY e.year;
 		
@@ -247,18 +247,21 @@ K získání odpovědi pak bylo využito kódu níže. Za pomoci *avg_wage* a *a
 
 **Ano**, výška HDP má vliv na změny ve mzdách a cenách potravin. Dle Pearsonova koeficientu korelace má růst **HDP silný pozitivní vliv na růst mezd v dalším roce** (*koeficient = 0,7*). Zároveň má pak růst **HDP viditelný střední vliv na růst mezd** (*koeficient = 0,4*) **a cen potravin** (*koeficient = 0,5*) **v tom stejném roce**. Na co však růst HDP nemá žádný vliv, je cena potravin v následujícím roce s ohledem na to, že se *koeficient korelace rovná 0*.
 
-K získání odpovědi pak bylo využito kódu níže. Za pomoci *growth_percent* jsem si spočítala procentuální meziroční růst HDP, mezd a cen prostřednictvím funkce LAG(). Poté jsem v *growth_next_year* pomocí funkce LEAD() vybrala následující hodnoty a nakonec tak pomocí hlavního SELECT a funkce CORR vypočítala aktuální i zpožděný efekt HDP na mzdy a ceny potravin souhrnně za celé sledované období.
+K získání odpovědi pak bylo využito kódu níže. Za pomoci *growth_percent* jsem si spočítala procentuální meziroční růst HDP, mezd a cen prostřednictvím funkce LAG() pro Českou republiku. Poté jsem v *growth_next_year* pomocí funkce LEAD() vybrala následující hodnoty a nakonec tak pomocí hlavního SELECT a funkce CORR vypočítala aktuální i zpožděný efekt HDP na mzdy a ceny potravin souhrnně za celé sledované období.
 
     WITH growth_percent AS (
 	    SELECT
-		    year,
+		    country,
+			year,
 		    ((gdp - LAG(gdp) OVER (ORDER BY year)) / LAG(gdp) OVER (ORDER BY year)) * 100 AS gdp_growth,
 		    ((avg_wage - LAG(avg_wage) OVER (ORDER BY year)) / LAG(avg_wage) OVER (ORDER BY year)) * 100 AS wage_growth,
 		    ((avg_price - LAG(avg_price) OVER (ORDER BY year)) / LAG(avg_price) OVER (ORDER BY year)) * 100 AS price_growth
 	    FROM t_natalie_vymlatilova_project_SQL_secondary_final
+		WHERE country = 'Czech Republic'
     ),
     growth_next_year AS (
 		SELECT
+			country,
 			year,
 			gdp_growth,
 			wage_growth,
@@ -266,11 +269,14 @@ K získání odpovědi pak bylo využito kódu níže. Za pomoci *growth_percent
 			LEAD(wage_growth) OVER (ORDER BY year) AS wage_growth_next_year,
 			LEAD(price_growth) OVER (ORDER BY year) AS price_growth_next_year
 		FROM growth_percent
+		WHERE country = 'Czech Republic'
 	)
 	SELECT
+		country,
 		ROUND(CORR(gdp_growth, wage_growth)::numeric, 3) AS corr_gdp_wage_same_year,
 		ROUND(CORR(gdp_growth, price_growth)::numeric, 3) AS corr_gdp_price_same_year,
 		ROUND(CORR(gdp_growth, wage_growth_next_year)::numeric, 3) AS corr_gdp_wage_next_year,
 		ROUND(CORR(gdp_growth, price_growth_next_year)::numeric, 3) AS corr_gdp_price_next_year
-	FROM growth_next_year;
+	FROM growth_next_year
+	GROUP BY country;
 
